@@ -2,7 +2,8 @@ const mongoose = require("mongoose")
 
 const attendantSchema = new mongoose.Schema({
     name: {type: String, required:true},
-    email: {type: String, required:true, unique: true},
+    staffId: {type: String, required:true, unique: true},
+    email: {type: String, unique: true},
     phone: String,
     address: String,
 },

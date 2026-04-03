@@ -8,5 +8,6 @@ router.get('/:id', bookController.getBookById);
 router.put('/:id', bookController.updateBook);
 router.delete('/:id', bookController.deleteBook);
 router.post('/:id/borrow', bookController.borrowBook);
+router.post('/:id/return', bookController.returnBook);
 
 module.exports = router;

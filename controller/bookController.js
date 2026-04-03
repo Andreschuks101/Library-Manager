@@ -51,12 +51,40 @@ exports.createBook = async (req, res, next) => {
 //2
 exports.getBooks = async (req, res, next) => {
   try {
-    const books = await Book.find()
-      .populate('authors')
-      .populate('borrowedBy', 'name email')
-      .populate('issuedBy', 'name email');
+    const { page = 1, limit = 10, search, author } = req.query;
+    const query = {};
 
-    return res.json(books);
+    if (search) {
+      query.title = { $regex: search, $options: 'i' };
+    }
+
+    if (author) {
+      // Find author by name first if author is a name, or if it's an ID
+      if (mongoose.isValidObjectId(author)) {
+          query.authors = author;
+      } else {
+          const authors = await Author.find({ name: { $regex: author, $options: 'i' } });
+          const authorIds = authors.map(a => a._id);
+          query.authors = { $in: authorIds };
+      }
+    }
+
+    const books = await Book.find(query)
+      .populate('authors')
+      .populate('borrowedBy', 'name email studentId')
+      .populate('issuedBy', 'name email staffId')
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .sort({ createdAt: -1 });
+
+    const count = await Book.countDocuments(query);
+
+    return res.json({
+      books,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      totalBooks: count
+    });
   } catch (error) {
     next(error);
   }
@@ -221,6 +249,39 @@ exports.borrowBook = async (req, res, next) => {
 
     return res.status(200).json({
       message: 'Book borrowed successfully',
+      book,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.returnBook = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!validateObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid book ID' });
+    }
+
+    const book = await Book.findById(id);
+    if (!book) {
+      return res.status(404).json({ message: 'Book not found' });
+    }
+
+    if (book.status === 'IN') {
+      return res.status(400).json({ message: 'Book is already returned (status is IN)' });
+    }
+
+    book.status = 'IN';
+    book.borrowedBy = null;
+    book.issuedBy = null;
+    book.returnDate = null;
+
+    await book.save();
+
+    return res.status(200).json({
+      message: 'Book returned successfully',
       book,
     });
   } catch (error) {
